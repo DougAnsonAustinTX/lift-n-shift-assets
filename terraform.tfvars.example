@@ -1,0 +1,20 @@
+location              = "eastus2"
+prefix                = "mysql-migrate"
+
+source_mysql_database = "testdb"
+
+admin_username        = "azureadmin"
+ssh_public_key        = "RSA_KEY_GOES_HERE"
+
+allowed_ssh_cidr      = "YOUR_PUBLIC_IP/32"
+allowed_mysql_cidr    = "YOUR_PUBLIC_IP/32"
+
+allow_mysql_inbound = true
+vm_size         = "Standard_E4pds_v6"
+os_disk_size_gb = 48
+
+tags = {
+  environment = "prod"
+  application = "testdb-migration"
+  owner       = "admin"
+  managed_by  = "terraform"

@@ -1,0 +1,65 @@
+#cloud-config
+package_update: true
+package_upgrade: true
+
+packages:
+  - mysql-server
+  - mysql-client
+  - pv
+  - jq
+  - openssl
+
+write_files:
+  - path: /usr/local/bin/mysql-migrate.sh
+    permissions: "0755"
+    owner: root:root
+    content: |
+      #!/usr/bin/env bash
+      set -euo pipefail
+
+      DEST_DB="${source_mysql_database}"
+      DEST_ROOT_PASS="$(openssl rand -base64 24 | tr -d '\n')"
+
+      log() {
+        echo "[$(date -Iseconds)] $1"
+      }
+
+      log "Starting MySQL service"
+      systemctl enable mysql
+      systemctl start mysql
+
+      log "Adding remote admin MySQL user"
+      mysql <<EOF
+      CREATE USER 'admin'@'%' IDENTIFIED BY '$${DEST_ROOT_PASS}';
+      GRANT ALL PRIVILEGES ON *.* TO 'admin'@'%' WITH GRANT OPTION;
+      FLUSH PRIVILEGES;
+      EOF
+
+      log "Setting password on root admin MySQL user..."
+      mysql <<SQL
+      ALTER USER 'root'@'localhost' IDENTIFIED WITH mysql_native_password BY '$${DEST_ROOT_PASS}';
+      FLUSH PRIVILEGES;
+      SQL
+
+      log "Installing benchmarking tools..."
+      apt install -y sysbench
+
+      log "Adjusting MySQL installation parameters and restarting..."
+      echo innodb_buffer_pool_size = 16G | tee -a /etc/mysql/mysql.conf.d/mysqld.cnf > /dev/null
+      echo innodb_flush_log_at_trx_commit = 2  | tee -a  /etc/mysql/mysql.conf.d/mysqld.cnf > /dev/null
+      echo innodb_log_file_size = 3G  | tee -a   /etc/mysql/mysql.conf.d/mysqld.cnf > /dev/null
+      echo bind_address = 0.0.0.0 | tee -a /etc/mysql/mysql.conf.d/mysqld.cnf > /dev/null
+
+      systemctl stop mysql
+      systemctl start mysql
+      systemctl status mysql
+      log "MySQL installation restarted"
+
+      log "Saving generated destination root password"
+      umask 077
+      echo "$${DEST_ROOT_PASS}" > /root/mysql_root_password.txt
+
+      log "MySQL server setup completed successfully"
+
+runcmd:
+  - bash /usr/local/bin/mysql-migrate.sh > /var/log/mysql-migrate.log 2>&1
