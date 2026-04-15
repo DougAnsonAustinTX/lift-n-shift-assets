@@ -18,3 +18,4 @@ tags = {
   application = "testdb-migration"
   owner       = "admin"
   managed_by  = "terraform"
+}
